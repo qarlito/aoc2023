@@ -55,7 +55,7 @@ UP = (-1,0)
 DOWN = (1,0)
 LEFT = (0,-1)
 RIGHT = (0,1)
-DIRECTIONS = [DOWN, RIGHT, LEFT, UP]
+DIRECTIONS = [DOWN, RIGHT, UP, LEFT]
 NUM_DIRECTIONS = len(DIRECTIONS)
 
 nodes = dict()   # Coord -> { IN:  {DIR->((node_row,node_col),dist),...},
@@ -139,6 +139,13 @@ for node, node_info in nodes.items():
             node_info[OUT][direction] = (new_node, distance)
             nodes[new_node][IN][in_direction] = (node, distance)
 
+
+# Make it bidirectional
+for node, node_info in nodes.items():
+    if node not in (START_NODE, END_NODE):
+        node_info[OUT].update(node_info[IN])
+        node_info[IN] = node_info[OUT]
+
 num_nodes_with_2_targets = 0
 for node, node_info in nodes.items():
     num_targets = len(node_info[OUT])
@@ -157,6 +164,7 @@ for node, node_info in nodes.items():
 print()
 pprint.pprint(nodes)
 
+
 # Exhaustively try all paths by just trying all directions, and asserting we are not making circles
 # path = [ (node, cost, last_chosen_direction), (node, cost, last_chosen_direction), ... ]
 
@@ -164,28 +172,38 @@ path = [ (START_NODE, 0, -1) ]
 highest_cost = -1
 
 # Backtracking algorithm
+cnt = 0
 while True:
-
+    cnt += 1
     if len(path) == 0:
         print(f'\nfinished searching. Hi score is {highest_cost}')
         break
 
     node, cost, direction_num = path.pop()
+    if len(path)>0:
+        # Never turn backwards
+        bad_dir = (path[-1][2] + 2) % 4
+    else:
+        bad_dir = -1
 
     if node == END_NODE:
-        #if cost > highest_cost:
-        #    print()
-        #    pprint.pprint([(a,b,DIRECTIONS[c]) for a,b,c in path])
-        #    print(f'Reaching {node} with cost {cost}')
+        if cost > highest_cost:
+            print()
+            pprint.pprint([(a,b,DIRECTIONS[c]) for a,b,c in path])
+            print(f'Reaching {node} with cost {cost}')
         highest_cost = max(cost, highest_cost)
         continue
 
     new_direction = direction_num + 1
-    if new_direction == NUM_DIRECTIONS:
+    if new_direction == bad_dir:
+        new_direction = direction_num + 1
+    if new_direction >= NUM_DIRECTIONS:
         continue
     path.append((node, cost, new_direction))
 
     new_node, extra_cost = nodes[node][OUT].get(DIRECTIONS[new_direction], (None,None))
     if new_node is not None and new_node not in [n for n,_,_ in path]:
         # We did not visit this node before; let's extend our path
+        if cnt % 100000 == 0:
+            print([d for _,_,d in path])
         path.append((new_node, cost+extra_cost, -1))
